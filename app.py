@@ -351,13 +351,43 @@ def display_emotion_debug_sidebar(debug_info):
     st.success(f"**Result:** {top_emotion['Emotion']} with {top_emotion['Combined Score']} confidence")
 
 # --- UI Components ---
+# Display logo
+import base64
+with open("KL-Logo.png", "rb") as logo_file:
+    logo_base64 = base64.b64encode(logo_file.read()).decode()
+
+st.markdown(f"""
+<div class="logo-container">
+    <img src="data:image/png;base64,{logo_base64}" class="app-logo" alt="KadelLabs Logo">
+</div>
+""", unsafe_allow_html=True)
+
 st.title("VoiceBot with Emotional Intelligence")
 
 # Add gradient background to main page
 st.markdown("""
 <style>
 .stApp {
-    background: linear-gradient(180deg, rgba(254, 230, 223, .32) 0, rgba(254, 230, 223, 0) 104.24%) center / cover no-repeat;
+    background: white;
+}
+
+/* Position logo outside normal markdown flow */
+.logo-container {
+    position: fixed !important;
+    top: 10px !important;
+    right: 15px !important;
+    z-index: 1000 !important;
+    margin: 0 !important;
+    padding: 20px 15px 0 0 !important;
+    transition: right 0.3s ease !important;
+}
+
+/* Logo will move with main content when sidebar opens - no additional CSS needed */
+
+.app-logo {
+    height: 75px !important;
+    width: auto !important;
+    display: block !important;
 }
 
 /* Constrain audiorecorder widget width */
