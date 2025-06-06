@@ -378,7 +378,7 @@ st.markdown("""
     right: 15px !important;
     z-index: 1000 !important;
     margin: 0 !important;
-    padding: 20px 15px 0 0 !important;
+    padding: 40px 15px 0 0 !important;
     transition: right 0.3s ease !important;
 }
 
