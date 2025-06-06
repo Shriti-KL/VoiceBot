@@ -94,14 +94,37 @@ if not client:
 # --- Simple Emotion Analysis Setup ---
 @st.cache_resource
 def load_emotion_model():
-    """Load emotion analysis model."""
+    """Load emotion analysis model with extended timeout and retry logic."""
+    import time
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+    
     try:
-        emotion_pipeline = pipeline("audio-classification", 
-                                  model="superb/hubert-large-superb-er",
-                                  return_all_scores=True)
-        return emotion_pipeline
+        # Configure longer timeouts for model download
+        import os
+        os.environ["HF_HUB_DOWNLOAD_TIMEOUT"] = "300"  # 5 minutes
+        
+        # Add retry logic
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                emotion_pipeline = pipeline(
+                    "audio-classification", 
+                    model="superb/hubert-large-superb-er",
+                    return_all_scores=True
+                )
+                return emotion_pipeline
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    st.info(f"Model download attempt {attempt + 1} failed, retrying in 5 seconds...")
+                    time.sleep(5)
+                else:
+                    raise e
+                    
     except Exception as e:
-        st.warning(f"Failed to load emotion model: {e}")
+        st.error(f"Failed to load emotion model after {max_retries} attempts: {e}")
+        st.error("**Emotion analysis will not work without the transformer model**")
+        st.info("The app requires HuBERT model for 95% transformer + 5% rule-based analysis")
         return None
 
 def extract_audio_features(audio_data, sr=16000):
@@ -162,7 +185,9 @@ def get_rule_based_emotions(features):
 def analyze_emotion_hybrid(audio_file_path, emotion_model):
     """Simple hybrid emotion analysis with confidence scores and debug info."""
     if not emotion_model:
-        return [("neu", 100.0), ("neu", 0.0)], None
+        st.error("Emotion analysis unavailable: Transformer model failed to load")
+        st.info("Please try refreshing the page or contact support if the issue persists")
+        return [("neu", 50.0), ("neu", 0.0)], None
     
     try:
         # Load audio
@@ -211,6 +236,7 @@ def analyze_emotion_hybrid(audio_file_path, emotion_model):
         return [top_emotion, second_emotion], debug_info
         
     except Exception as e:
+        st.error(f"Error during emotion analysis: {e}")
         return [("neu", 50.0), ("neu", 0.0)], None
 
 # Load emotion model
