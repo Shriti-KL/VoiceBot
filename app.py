@@ -1,17 +1,30 @@
 import streamlit as st
 import os
+import sys
 from openai import OpenAI
 from dotenv import load_dotenv
 import httpx # Required by openai
 from audiorecorder import audiorecorder # New library for audio recording
 from pathlib import Path # For handling file paths
+
+# Cloud environment detection
+IS_STREAMLIT_CLOUD = "STREAMLIT_CLOUD" in os.environ or "streamlit" in sys.modules
+
 # Minimal emotion analysis imports
-import torch
-from transformers import pipeline
-import librosa
-import numpy as np
 import warnings
 warnings.filterwarnings("ignore")
+
+try:
+    import torch
+    from transformers import pipeline
+    import librosa
+    import numpy as np
+    AUDIO_LIBS_AVAILABLE = True
+except ImportError as e:
+    AUDIO_LIBS_AVAILABLE = False
+    st.error(f"Audio processing libraries not available: {e}")
+    if IS_STREAMLIT_CLOUD:
+        st.info("This might be a temporary issue with Streamlit Cloud. Please try refreshing the page.")
 
 # --- Configuration ---
 # Set Streamlit page configuration
@@ -95,36 +108,47 @@ if not client:
 @st.cache_resource
 def load_emotion_model():
     """Load emotion analysis model with extended timeout and retry logic."""
+    if not AUDIO_LIBS_AVAILABLE:
+        st.warning("Audio processing libraries not available - emotion analysis disabled")
+        return None
+        
     import time
-    from requests.adapters import HTTPAdapter
-    from urllib3.util.retry import Retry
     
     try:
-        # Configure longer timeouts for model download
-        import os
-        os.environ["HF_HUB_DOWNLOAD_TIMEOUT"] = "300"  # 5 minutes
+        # Configure for cloud environment
+        if IS_STREAMLIT_CLOUD:
+            os.environ["HF_HUB_DOWNLOAD_TIMEOUT"] = "600"  # 10 minutes for cloud
+            os.environ["TRANSFORMERS_CACHE"] = "/tmp/transformers_cache"
+            os.environ["HF_HOME"] = "/tmp/huggingface"
+        else:
+            os.environ["HF_HUB_DOWNLOAD_TIMEOUT"] = "300"  # 5 minutes for local
         
         # Add retry logic
-        max_retries = 3
+        max_retries = 2 if IS_STREAMLIT_CLOUD else 3
         for attempt in range(max_retries):
             try:
-                emotion_pipeline = pipeline(
-                    "audio-classification", 
-                    model="superb/hubert-large-superb-er",
-                    return_all_scores=True
-                )
-                return emotion_pipeline
+                with st.spinner(f"Loading emotion model (attempt {attempt + 1}/{max_retries})..."):
+                    emotion_pipeline = pipeline(
+                        "audio-classification", 
+                        model="superb/hubert-large-superb-er",
+                        return_all_scores=True,
+                        device=-1  # Force CPU usage
+                    )
+                    return emotion_pipeline
             except Exception as e:
                 if attempt < max_retries - 1:
-                    st.info(f"Model download attempt {attempt + 1} failed, retrying in 5 seconds...")
-                    time.sleep(5)
+                    st.info(f"Model download attempt {attempt + 1} failed, retrying in 10 seconds...")
+                    time.sleep(10)
                 else:
                     raise e
                     
     except Exception as e:
         st.error(f"Failed to load emotion model after {max_retries} attempts: {e}")
         st.error("**Emotion analysis will not work without the transformer model**")
-        st.info("The app requires HuBERT model for 95% transformer + 5% rule-based analysis")
+        if IS_STREAMLIT_CLOUD:
+            st.info("This is likely due to Streamlit Cloud resource limitations. The app will work without emotion analysis.")
+        else:
+            st.info("The app requires HuBERT model for 95% transformer + 5% rule-based analysis")
         return None
 
 def extract_audio_features(audio_data, sr=16000):
