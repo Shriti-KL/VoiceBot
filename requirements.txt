@@ -1,0 +1,10 @@
+streamlit==1.32.0
+openai==1.17.0
+python-dotenv==1.0.1
+httpx==0.27.0 # Required by openai
+streamlit-audiorecorder==0.0.6
+# Minimal emotion analysis dependencies
+transformers==4.44.0
+torch>=2.0.0
+librosa==0.10.1
+numpy>=1.24.0
